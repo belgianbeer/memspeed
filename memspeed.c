@@ -1,7 +1,13 @@
+/*
+ *  memspeed.c
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
+
+static char Id[] = "$Id: memspeed.c,v 1.2 1999/01/26 05:54:32 minmin Exp $";
 
 void
 main (int argc, char **argv)
