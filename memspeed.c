@@ -7,35 +7,38 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.2 1999/01/26 05:54:32 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.3 1999/01/26 07:51:40 minmin Exp $";
 
 void
 main (int argc, char **argv)
 {
+    char buf[100];
+    char *k;
     struct timeval  begin_time, end_time;
     struct timezone tz = {0, 0};
-    void *src, *dst;
+    void  *src, *dst;
     int  i, s;
-    int  count, memsize;
+    size_t count, mem, memsize;
+    double  totaltime;
 
     if (argc != 3)
     {
 	fputs (
 	    "Usage: memtest size count\n"
-	    "\tsize[k]: allocate size\n"
+	    "\tsize[k]: allocate size (default is Mbyte)\n"
 	    "\t  count: repeat count\n",
 	    stderr);
 	exit (2);
     }
 
-    if ((memsize = (int)atoi(argv[1])) <= 0)
+    if ((mem = (size_t)atoi(argv[1])) <= 0)
     {
-	memsize = 1;
+	mem = 1;
     }
 
-    memsize *= 1024 * ((strchr(argv[1], 'k') == NULL) ?  1024: 1 );
+    memsize = mem * 1024 * (((k = strchr(argv[1], 'k')) == NULL) ?  1024: 1 );
 
-    if ((count = (int)atoi(argv[2])) <= 0)
+    if ((count = (size_t)atoi(argv[2])) <= 0)
     {
 	count = 1;
     }
@@ -59,8 +62,20 @@ main (int argc, char **argv)
 	end_time.tv_sec --;
     }
 
-    printf ("time is %ld.%03ld\n", end_time.tv_sec - begin_time.tv_sec,
+    sprintf (buf, "%ld.%06ld", 
+	    end_time.tv_sec - begin_time.tv_sec,
 	    end_time.tv_usec - begin_time.tv_usec);
+
+    totaltime = atof(buf);
+    printf ("%ld%s at %ld times (total %dM + %dK) "
+	    "in %ld.%06ld sec  %dKbyte/sec\n",
+	    mem, k == NULL? "M": "K", count, 
+	    (memsize * count) >> 20,
+	    (((memsize * count) | 0x100 ) >> 10) & 0x3ff ,
+	    end_time.tv_sec - begin_time.tv_sec,
+	    end_time.tv_usec - begin_time.tv_usec,
+	    (long)((double)(memsize * count) / totaltime + .5) >> 10
+	    );
     
     exit (0);
 }
