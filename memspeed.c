@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.6 1999/01/27 09:19:45 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.7 1999/02/15 03:16:58 minmin Exp $";
+
+void usage(void);
 
 void
 main (int argc, char **argv)
@@ -17,18 +19,20 @@ main (int argc, char **argv)
     struct timeval  begin_time, end_time;
     struct timezone tz = {0, 0};
     void  *src, *dst;
-    int  i, s;
+    int  i, s, offset = 0;
     size_t count, mem, memsize;
     double  totaltime;
 
+    while (argc >= 2 && *argv[1] == '-')
+    {
+	offset = atoi(argv[1] + 1);
+	--argc;
+	++argv;
+    }
+
     if (argc != 3)
     {
-	fputs (
-	    "Usage: memspeed size count\n"
-	    "\tsize[k]: allocate size (Mbyte in default)\n"
-	    "\t  count: repeat count\n",
-	    stderr);
-	exit (2);
+	usage ();
     }
 
     if ((mem = (size_t)atoi(argv[1])) <= 0)
@@ -44,19 +48,19 @@ main (int argc, char **argv)
     }
 
     if (((src = malloc(memsize)) == NULL) ||
-	((dst = malloc(memsize)) == NULL) )
+	((dst = malloc(memsize + offset)) == NULL) )
     {
 	fprintf (stderr, "Can't alloc memory\n");
 	exit (1);
     }
 
-    bzero(src, memsize);
-    bzero(dst, memsize);
+    memset(src, 0, memsize);
+    memset(dst, 0, memsize);
 
     s = gettimeofday(&begin_time, &tz);
 
     for (i = 0; i < count ; i ++)
-	memcpy (src, dst, memsize);
+	memcpy (dst + offset, src, memsize);
 
     s = gettimeofday(&end_time, &tz);
 
@@ -71,7 +75,7 @@ main (int argc, char **argv)
 
     totaltime = atof(buf);
     printf ("copy %ld%s at %ld times (total %dM + %dK) "
-	    "in %ld.%06ld sec  %d Kbyte/sec\n",
+	    "in %ld.%06ld sec  %ld Kbyte/sec\n",
 	    mem, k == NULL? "M": "K", count, 
 	    (memsize * count) >> 20,
 	    (((memsize * count) | 0x100 ) >> 10) & 0x3ff ,
@@ -81,4 +85,14 @@ main (int argc, char **argv)
 	    );
     
     exit (0);
+}
+
+void usage()
+{
+    fputs (
+	"Usage: memspeed size count\n"
+	"\tsize[k]: allocate size (Mbyte in default)\n"
+	"\t  count: repeat count\n",
+	stderr);
+    exit (1);
 }
