@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.3 1999/01/26 07:51:40 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.4 1999/01/26 08:15:23 minmin Exp $";
 
 void
 main (int argc, char **argv)
@@ -67,7 +67,7 @@ main (int argc, char **argv)
 	    end_time.tv_usec - begin_time.tv_usec);
 
     totaltime = atof(buf);
-    printf ("%ld%s at %ld times (total %dM + %dK) "
+    printf ("copy %ld%s at %ld times (total %dM + %dK) "
 	    "in %ld.%06ld sec  %dKbyte/sec\n",
 	    mem, k == NULL? "M": "K", count, 
 	    (memsize * count) >> 20,
