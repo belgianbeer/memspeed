@@ -19,11 +19,10 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.9 2000/04/07 01:51:41 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.10 2003/08/05 04:52:33 minmin Exp $";
 
 void usage(void);
 
-void
 main (int argc, char **argv)
 {
     char buf[100];
@@ -33,6 +32,7 @@ main (int argc, char **argv)
     void  *src, *dst;
     int  i, s, offset = 0;
     size_t count, mem, memsize;
+    int64_t totalsize;
     double  totaltime;
 
     while (argc >= 2 && *argv[1] == '-')
@@ -85,15 +85,18 @@ main (int argc, char **argv)
 	    end_time.tv_sec - begin_time.tv_sec,
 	    end_time.tv_usec - begin_time.tv_usec);
 
+    totalsize = (int64_t)memsize * (int64_t)count;
     totaltime = atof(buf);
     printf ("copy %ld%s at %ld times (total %dM + %dK) "
 	    "in %ld.%06ld sec  %ld Kbyte/sec\n",
-	    mem, k == NULL? "M": "K", count, 
-	    (memsize * count) >> 20,
-	    (((memsize * count) | 0x100 ) >> 10) & 0x3ff ,
+	    (long int)mem,
+	    k == NULL? "M": "K",
+	    (long int)count, 
+	    (int)(totalsize >> 20),
+	    (int)(((totalsize | 0x100 ) >> 10) & 0x3ff),
 	    end_time.tv_sec - begin_time.tv_sec,
 	    end_time.tv_usec - begin_time.tv_usec,
-	   (long)((long long)((double)(memsize * count) / totaltime + .5) >> 10)
+	    (long int)((int64_t)((double)totalsize / totaltime + .5) >> 10)
 	    );
     
     exit (0);
