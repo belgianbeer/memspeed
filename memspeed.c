@@ -1,13 +1,25 @@
 /*
  *  memspeed.c
  *
+ *  benchmark program in memcpy
+ *
+ *    example:
+ *
+ *    memspeed 10 10 
+ *       copy 10 Mbyte in 10 times
+ *
+ *    memspeed 128k 1000
+ *       copy 128 kbyte in 10 times
+ *
+ *      Written by Masato Minda <minmin@wide.ad.jp>
+ *
  */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.8 1999/11/06 19:03:41 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.9 2000/04/07 01:51:41 minmin Exp $";
 
 void usage(void);
 
