@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.7 1999/02/15 03:16:58 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.8 1999/11/06 19:03:41 minmin Exp $";
 
 void usage(void);
 
@@ -81,7 +81,7 @@ main (int argc, char **argv)
 	    (((memsize * count) | 0x100 ) >> 10) & 0x3ff ,
 	    end_time.tv_sec - begin_time.tv_sec,
 	    end_time.tv_usec - begin_time.tv_usec,
-	    (long)((double)(memsize * count) / totaltime + .5) >> 10
+	   (long)((long long)((double)(memsize * count) / totaltime + .5) >> 10)
 	    );
     
     exit (0);
