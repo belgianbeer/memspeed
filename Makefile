@@ -1,12 +1,16 @@
-#  $Id: Makefile,v 1.3 1999/01/29 05:13:02 minmin Exp $
+#  $Id: Makefile,v 1.4 2003/08/05 04:58:19 minmin Exp $
 #
 
-PROG=	memspeed
+  SRCS = memspeed.c
+  OBJS = memspeed.o
+  PROG = memspeed
+    RM = rm -f
+CFLAGS = -O
 
-BINDIR ?= /usr/local/bin
+all:	$(PROG)
 
-MANDIR ?= /usr/local/man
+$(PROG): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $@
 
-MAN1=
-
-.include <bsd.prog.mk>
+clean:
+	$(RM) $(OBJS) $(PROG)
