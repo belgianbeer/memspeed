@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.5 1999/01/27 02:08:33 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.6 1999/01/27 09:19:45 minmin Exp $";
 
 void
 main (int argc, char **argv)
@@ -49,6 +49,9 @@ main (int argc, char **argv)
 	fprintf (stderr, "Can't alloc memory\n");
 	exit (1);
     }
+
+    bzero(src, memsize);
+    bzero(dst, memsize);
 
     s = gettimeofday(&begin_time, &tz);
 
