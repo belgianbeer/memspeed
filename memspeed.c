@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.4 1999/01/26 08:15:23 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.5 1999/01/27 02:08:33 minmin Exp $";
 
 void
 main (int argc, char **argv)
@@ -24,8 +24,8 @@ main (int argc, char **argv)
     if (argc != 3)
     {
 	fputs (
-	    "Usage: memtest size count\n"
-	    "\tsize[k]: allocate size (default is Mbyte)\n"
+	    "Usage: memspeed size count\n"
+	    "\tsize[k]: allocate size (Mbyte in default)\n"
 	    "\t  count: repeat count\n",
 	    stderr);
 	exit (2);
@@ -68,7 +68,7 @@ main (int argc, char **argv)
 
     totaltime = atof(buf);
     printf ("copy %ld%s at %ld times (total %dM + %dK) "
-	    "in %ld.%06ld sec  %dKbyte/sec\n",
+	    "in %ld.%06ld sec  %d Kbyte/sec\n",
 	    mem, k == NULL? "M": "K", count, 
 	    (memsize * count) >> 20,
 	    (((memsize * count) | 0x100 ) >> 10) & 0x3ff ,
