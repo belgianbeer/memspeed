@@ -1,7 +1,11 @@
-#  $Id: Makefile,v 1.2 1999/01/26 05:54:32 minmin Exp $
+#  $Id: Makefile,v 1.3 1999/01/29 05:13:02 minmin Exp $
 #
 
 PROG=	memspeed
+
+BINDIR ?= /usr/local/bin
+
+MANDIR ?= /usr/local/man
 
 MAN1=
 
