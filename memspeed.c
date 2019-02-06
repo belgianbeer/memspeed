@@ -19,10 +19,11 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.10 2003/08/05 04:52:33 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.11 2019/02/06 03:40:39 minmin Exp $";
 
 void usage(void);
 
+int
 main (int argc, char **argv)
 {
     char buf[100];
@@ -82,7 +83,7 @@ main (int argc, char **argv)
     }
 
     sprintf (buf, "%ld.%06ld", 
-	    end_time.tv_sec - begin_time.tv_sec,
+	    (long)(end_time.tv_sec - begin_time.tv_sec),
 	    end_time.tv_usec - begin_time.tv_usec);
 
     totalsize = (int64_t)memsize * (int64_t)count;
@@ -94,7 +95,7 @@ main (int argc, char **argv)
 	    (long int)count, 
 	    (int)(totalsize >> 20),
 	    (int)(((totalsize | 0x100 ) >> 10) & 0x3ff),
-	    end_time.tv_sec - begin_time.tv_sec,
+	    (long)(end_time.tv_sec - begin_time.tv_sec),
 	    end_time.tv_usec - begin_time.tv_usec,
 	    (long int)((int64_t)((double)totalsize / totaltime + .5) >> 10)
 	    );
