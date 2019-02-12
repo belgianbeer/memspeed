@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.11 2019/02/06 03:40:39 minmin Exp $";
+static char Id[] = "$Id: memspeed.c,v 1.12 2019/02/12 05:08:50 minmin Exp $";
 
 void usage(void);
 
@@ -53,7 +53,7 @@ main (int argc, char **argv)
 	mem = 1;
     }
 
-    memsize = mem * 1024 * (((k = strchr(argv[1], 'k')) == NULL) ?  1024: 1 );
+    memsize = mem * 1000 * (((k = strchr(argv[1], 'k')) == NULL) ?  1000: 1 );
 
     if ((count = (size_t)atoi(argv[2])) <= 0)
     {
