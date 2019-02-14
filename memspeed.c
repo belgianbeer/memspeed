@@ -17,9 +17,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/time.h>
 
-static char Id[] = "$Id: memspeed.c,v 1.13 2019/02/12 05:30:39 minmin Exp $";
+char Id[] = "$Id: memspeed.c,v 1.14 2019/02/14 01:48:54 minmin Exp $";
 
 void usage(void);
 
