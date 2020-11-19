@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 
-char Id[] = "$Id: memspeed.c,v 1.14 2019/02/14 01:48:54 minmin Exp $";
+char Id[] = "$Id: memspeed.c,v 1.15 2020/11/19 23:58:20 minmin Exp $";
 
 void usage(void);
 
@@ -89,17 +89,17 @@ main (int argc, char **argv)
 
     totalsize = (int64_t)memsize * (int64_t)count;
     totaltime = atof(buf);
-    printf ("copy %ld%s at %ld times (total %dM + %dK) "
-	    "in %ld.%06ld sec  %ld Kbyte/sec\n",
+    printf ("copy %ld %s at %ld times (total %d MB + %d KB) "
+	    "in %ld.%06ld sec  %ld MB/sec\n",
 	    (long int)mem,
-	    k == NULL? "M": "K",
+	    k == NULL? "MB": "KB",
 	    (long int)count, 
 
 	    (int)(totalsize / 1000000),
 	    (int)((totalsize % 1000000) / 1000),
 	    (long)(end_time.tv_sec - begin_time.tv_sec),
 	    (long)(end_time.tv_usec - begin_time.tv_usec),
-	    (long int)((int64_t)((double)totalsize / totaltime + .5) / 1000)
+	    (long int)((int64_t)((double)totalsize / totaltime + .5) / 1000000)
 	    );
     
     exit (0);
