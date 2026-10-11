@@ -1,0 +1,4 @@
+memspeed
+memspeed.o
+*.core
+a.out

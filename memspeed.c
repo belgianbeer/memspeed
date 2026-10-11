@@ -9,36 +9,64 @@
  *       copy 10 Mbyte in 10 times
  *
  *    memspeed 128k 1000
- *       copy 128 kbyte in 10 times
+ *       copy 128 kbyte in 1000 times
+ *
+ *    memspeed -8 4 100
+ *       copy 4 Mbyte in 100 times, destination shifted by 8 bytes
  *
  *      Written by Masato Minda <minmin@wide.ad.jp>
  *
  */
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
+#include <errno.h>
+#include <limits.h>
+#include <time.h>
 #include <sys/time.h>
 
-char Id[] = "$Id: memspeed.c,v 1.15 2020/11/19 23:58:20 minmin Exp $";
+char Id[] = "$Id: memspeed.c,v 1.15 2020-11-19 23:58:20 minmin Exp $";
+
+/*
+ * Every unit is decimal (1 KB = 1000 bytes, 1 MB = 1000 KB) so that the MB/sec
+ * figure reported at the end is just the byte rate divided by 1000000.
+ */
+#define KB_SIZE	(1000ULL)
+#define MB_SIZE	(1000000ULL)
+#define GB_SIZE	(1000000000ULL)
 
 void usage(void);
+static int parse_size(const char *str, uint64_t *valuep,
+					  const char **unitp, uint64_t *bytesp);
+static double now(void);
 
 int main(int argc, char **argv)
 {
-	char buf[100];
-	char *k;
-	struct timeval begin_time, end_time;
-	struct timezone tz = {0, 0};
-	void *src, *dst;
-	int i, s, offset = 0;
-	size_t count, mem, memsize;
-	int64_t totalsize;
-	double totaltime;
+	char *end;
+	char *src = NULL, *dst = NULL;
+	const char *unit = "MB";
+	char speed[32];
+	uint64_t mem, memsize, count, totalsize, offset = 0;
+	uint64_t i;
+	double begin, elapsed;
+	size_t bytes;
 
-	while (argc >= 2 && *argv[1] == '-')
+	/* "-N" shifts the destination by N bytes to measure a misaligned copy */
+	while (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0')
 	{
-		offset = atoi(argv[1] + 1);
+		if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)
+		{
+			usage();
+		}
+		errno = 0;
+		offset = (uint64_t)strtoull(argv[1] + 1, &end, 10);
+		if (end == argv[1] + 1 || *end != '\0' || errno != 0 ||
+			offset > (uint64_t)SIZE_MAX)
+		{
+			fprintf(stderr, "memspeed: bad offset '%s'\n", argv[1] + 1);
+			usage();
+		}
 		--argc;
 		++argv;
 	}
@@ -48,68 +76,204 @@ int main(int argc, char **argv)
 		usage();
 	}
 
-	if ((mem = (size_t)atoi(argv[1])) <= 0)
+	if (parse_size(argv[1], &mem, &unit, &memsize) != 0)
 	{
-		mem = 1;
+		fprintf(stderr, "memspeed: bad size '%s' (try 10, 128k or 1g)\n", argv[1]);
+		return 1;
 	}
 
-	memsize = mem * 1000 * (((k = strchr(argv[1], 'k')) == NULL) ? 1000 : 1);
-
-	if ((count = (size_t)atoi(argv[2])) <= 0)
+	errno = 0;
+	count = (uint64_t)strtoull(argv[2], &end, 10);
+	if (end == argv[2] || *end != '\0' || errno != 0 || count == 0 ||
+		count > UINT64_MAX / memsize)
 	{
-		count = 1;
+		fprintf(stderr, "memspeed: bad count '%s'\n", argv[2]);
+		return 1;
 	}
 
-	if (((src = malloc(memsize)) == NULL) ||
-		((dst = malloc(memsize + offset)) == NULL))
+	if (memsize > (uint64_t)SIZE_MAX - offset)
 	{
-		fprintf(stderr, "Can't alloc memory\n");
-		exit(1);
+		fprintf(stderr, "memspeed: size is too large for this platform\n");
+		return 1;
+	}
+	bytes = (size_t)memsize;
+
+	if (((src = malloc(bytes)) == NULL) ||
+		((dst = malloc(bytes + (size_t)offset)) == NULL))
+	{
+		fprintf(stderr, "memspeed: Can't alloc memory (%llu bytes): %s\n",
+				(unsigned long long)(bytes + (size_t)offset), strerror(errno));
+		free(src);
+		free(dst);
+		return 1;
 	}
 
-	memset(src, 0, memsize);
-	memset(dst, 0, memsize);
+	/*
+	 * Seed the buffers with a non-zero pattern.  Untouched pages of a fresh
+	 * malloc() are commonly backed by the shared zero page, so an all-zero
+	 * buffer would let part of the copy avoid real memory traffic.
+	 */
+	memset(src, 0xA5, bytes);
+	memset(dst, 0xA5, bytes + (size_t)offset);
 
-	s = gettimeofday(&begin_time, &tz);
+	begin = now();
 
 	for (i = 0; i < count; i++)
-		memcpy(dst + offset, src, memsize);
+		memcpy(dst + offset, src, bytes);
 
-	s = gettimeofday(&end_time, &tz);
-
-	if (end_time.tv_usec < begin_time.tv_usec)
+	totalsize = memsize * count;
+	elapsed = now() - begin;
+	if (elapsed < 0.0)			/* the wall clock stepped backwards */
 	{
-		end_time.tv_usec += 1000000;
-		end_time.tv_sec--;
+		elapsed = 0.0;
 	}
 
-	sprintf(buf, "%ld.%06ld",
-			(long)(end_time.tv_sec - begin_time.tv_sec),
-			(long)(end_time.tv_usec - begin_time.tv_usec));
+	if (elapsed > 0.0)
+	{
+		double mb_per_sec = (double)totalsize / elapsed / (double)MB_SIZE;
 
-	totalsize = (int64_t)memsize * (int64_t)count;
-	totaltime = atof(buf);
-	printf("copy %ld %s at %ld times (total %d MB + %d KB) "
-		   "in %ld.%06ld sec  %ld MB/sec\n",
-		   (long int)mem,
-		   k == NULL ? "MB" : "KB",
-		   (long int)count,
+		if (mb_per_sec >= 1e18)		/* unmeasurably short interval */
+			snprintf(speed, sizeof(speed), "too fast");
+		else
+			snprintf(speed, sizeof(speed), "%llu",
+					 (unsigned long long)(mb_per_sec + 0.5));
+	}
+	else
+	{
+		snprintf(speed, sizeof(speed), "N/A");
+	}
 
-		   (int)(totalsize / 1000000),
-		   (int)((totalsize % 1000000) / 1000),
-		   (long)(end_time.tv_sec - begin_time.tv_sec),
-		   (long)(end_time.tv_usec - begin_time.tv_usec),
-		   (long int)((int64_t)((double)totalsize / totaltime + .5) / 1000000));
+	if (elapsed <= 0.0)
+	{
+		/* also what happens when the compiler optimizes the loop away */
+		fprintf(stderr, "memspeed: nothing measurable was copied;"
+				" use a larger size or count (or build without -O)\n");
+	}
+	else if (elapsed < 0.001)
+	{
+		fprintf(stderr, "memspeed: warning: only %.6f sec measured;"
+				" use a larger size or count\n", elapsed);
+	}
 
-	exit(0);
+	printf("copy %llu %s at %llu times (total %llu MB + %llu KB) "
+		   "in %.6f sec  %s MB/sec\n",
+		   (unsigned long long)mem,
+		   unit,
+		   (unsigned long long)count,
+		   (unsigned long long)(totalsize / MB_SIZE),
+		   (unsigned long long)((totalsize % MB_SIZE) / KB_SIZE),
+		   elapsed,
+		   speed);
+
+	free(src);
+	free(dst);
+	return 0;
 }
 
-void usage()
+void usage(void)
 {
 	fputs(
-		"Usage: memspeed size count\n"
-		"\tsize[k]: allocate size (Mbyte in default)\n"
+		"Usage: memspeed [-offset] size count\n"
+		"\t-offset: shift the destination by offset bytes\n"
+		"\t   size: allocate size (k/KB, m/MB, g/GB; a bare number is MB)\n"
 		"\t  count: repeat count\n",
 		stderr);
 	exit(1);
+}
+
+/*
+ * Parse a size such as "10", "128k", "512kb" or "1G" into the number shown in
+ * the report, the unit it is printed with, and the byte count it stands for.
+ * A bare number keeps its historical meaning of megabytes, and the base is
+ * always 1000 - never 1024.  Returns 0 on success, -1 if malformed or too big.
+ */
+static int parse_size(const char *str, uint64_t *valuep,
+					  const char **unitp, uint64_t *bytesp)
+{
+	const char *p = str;
+	char *end;
+	unsigned long long value;
+	uint64_t scale;
+	const char *unit;
+	int has_suffix = 1;
+
+	if (*p < '0' || *p > '9')
+	{
+		return -1;
+	}
+
+	errno = 0;
+	value = strtoull(p, &end, 10);
+	if (end == p || errno != 0 || value == 0)
+	{
+		return -1;
+	}
+	p = end;
+
+	switch (*p)
+	{
+	case 'k':
+	case 'K':
+		scale = KB_SIZE;
+		unit = "KB";
+		break;
+	case 'm':
+	case 'M':
+		scale = MB_SIZE;
+		unit = "MB";
+		break;
+	case 'g':
+	case 'G':
+		scale = GB_SIZE;
+		unit = "GB";
+		break;
+	default:
+		has_suffix = 0;
+		scale = MB_SIZE;
+		unit = "MB";
+		break;
+	}
+
+	if (has_suffix)
+	{
+		p++;
+		if (*p == 'b' || *p == 'B')	/* "128kb" is accepted as "128k" */
+		{
+			p++;
+		}
+	}
+	if (*p != '\0' || (uint64_t)value > UINT64_MAX / scale)
+	{
+		return -1;
+	}
+
+	*valuep = (uint64_t)value;
+	*unitp = unit;
+	*bytesp = (uint64_t)value * scale;
+	return 0;
+}
+
+/*
+ * Seconds since an unspecified origin.  CLOCK_MONOTONIC is preferred because it
+ * resolves to nanoseconds: a microsecond wall clock easily reports 0 sec for a
+ * short run, which is how the old code ended up dividing totalsize by zero.
+ * Compile with -DUSE_GETTIMEOFDAY to force the traditional implementation, or
+ * with -lrt on the older systems where clock_gettime() is not in libc.
+ */
+static double now(void)
+{
+#if defined(CLOCK_MONOTONIC) && !defined(USE_GETTIMEOFDAY)
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+	{
+		return ((double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0);
+	}
+#endif
+	{
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+		return ((double)tv.tv_sec + (double)tv.tv_usec / 1000000.0);
+	}
 }
