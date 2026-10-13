@@ -12,15 +12,21 @@ Written by Masato Minda <minmin@wide.ad.jp>
 ## ビルド
 
 ```sh
-make			# memspeed が生成される
+make			# memspeed が生成される（既定で -O2）
 make test		# 代表的なケースを数回実行
+make testnoopt		# 同じケースを最適化なしで実行し、見比べる
 make clean
 ```
 
-`CFLAGS` は意図的に空です。最適化を有効にするとコンパイラが `memcpy()` を
-単なるメモリコピーより速い処理に置き換えてしまうことがあり、それはこの
-プログラムが測りたい対象そのものだからです。警告チェックをしたいときは
-`make CFLAGS='-Wall -Wextra -pedantic'` としてください（現状、警告は出ません）。
+`CFLAGS` の既定は `-O2` です。コピーループはバッファの末尾バイトを `volatile`
+修飾したポインタ経由でも読んでいて、この読み取りはコンパイラに消せないため、
+最適化されても計測対象の `memcpy()` はそのまま残ります（下の「実装上の注意」参照）。
+ただし最適化のレベルそのものはコピーの「され方」に効いてくるので、素朴な
+ビルドと見比べる口として `make testnoopt`（`CFLAGS` を空にした同じソースで
+同じケースを回す）を残してあります。警告チェックをしたいときは、コマンド
+ラインの `CFLAGS` が既定値をまるごと置き換えるため
+`make CFLAGS='-O2 -Wall -Wextra -pedantic'` としてください（現状、警告は
+出ません）。
 
 ## 使い方
 
@@ -67,13 +73,20 @@ copy 4 MB at 100 times (total 400 MB + 0 KB) in 0.062776 sec  6372 MB/sec
 - **経過時間は可能なら `CLOCK_MONOTONIC`（ナノ秒分解能）で取ります。**
   マイクロ秒分解能の壁時計だけでは、短い実行で経過 0 秒となり、旧版はそこで
   0 除算をしていました。経過が 0 秒だった場合、速度欄は `N/A` になり、
-  標準エラーに「size か count を大きくするか、最適化なしでビルドする」案内を出します。
+  標準エラーに「size か count を大きくする」案内を出します。
   1 ミリ秒未満しか計測できなかった場合は別の注意文を出します。
 - 分解能が不足すると感じる場合は `size` または `count` を大きくしてください。
-- **`-O1` 以上でビルドすると数値が当てになりません。** コンパイラは同じ
-  バッファへの繰り返しコピーを検出してループごと削除することがあり、実際に
-  `cc -O2` でビルドすると計測時間が 0 秒になり `N/A` と表示されます。
-  デフォルトの `Makefile` は `CFLAGS` を空にしています。
+- **最適化を有効にしても計測対象は消えません。** コピーだけのループは、コンパイラ
+  から見れば「毎回同じ値を書き込んで、誰も読まない」処理なので、放っておくと
+  `-O2` でループごと削除されます。実際に旧版は `cc -O2` ビルドで経過 0 秒・
+  速度欄 `N/A` になっていました。現在は各回のコピーのあとで、転送元と転送先の
+  末尾バイトを `volatile` 修飾ポインタ経由で読み合わせています。`volatile` 経由の
+  読み取りは側効果なので消せず、しかも転送先の値はコピーが実際に走らなければ
+  転送元と一致しないため、コンパイラはコピーを残すしかありません。万一ちがって
+  いた場合は `copy mismatch` を標準エラーに出してループを抜け、その時点で
+  完了した回数から総量を計算します。
+  既定のビルドはこの `-O2` です。`make testnoopt` とすれば同じケースを最適化
+  なしで測れて、これまで比べた範囲では両者の数値に差は出ていません。
 - 極端に大きい `size` を指定すると、OS のオーバーコミットによりプロセスが
   強制終了されることがあります（`Can't alloc memory` を待たずに kill される
   ことがあります）。
@@ -81,7 +94,9 @@ copy 4 MB at 100 times (total 400 MB + 0 KB) in 0.062776 sec  6372 MB/sec
 ## ポートビルドメモ
 
 - C99 以降（`stdint.h` と `strtoull()` を使います）。
-- macOS / Linux / Solaris で `$(CC)` に任せるだけの素朴な Makefile です。
+- macOS / Linux / Solaris で `$(CC)` に任せるだけの素朴な Makefile です。既定の
+  `-O2` は主要コンパイラならどれも受け付けますが、外したいときは
+  `make CFLAGS=` で最適化なしのビルドになります。
 - `clock_gettime()` が libc に含まれない古いシステムでは `LDLIBS=-lrt` を、
   壁時計を使いたい場合は `-DUSE_GETTIMEOFDAY` を指定してビルドできます。
 
@@ -121,14 +136,20 @@ Written by Masato Minda <minmin@wide.ad.jp>
 ```sh
 make			# builds memspeed
 make test		# runs a few representative cases
+make testnoopt		# runs the same cases without optimization, to compare
 make clean
 ```
 
-`CFLAGS` is deliberately left empty.  When optimization is enabled the compiler
-may replace `memcpy()` with something faster than a plain memory copy, and that
-is exactly what this program is trying to measure.  To check the source for
-warnings, build with `make CFLAGS='-Wall -Wextra -pedantic'` (it is expected to
-produce no warnings).
+`CFLAGS` defaults to `-O2`, which the measurement can afford: the copy loop
+also reads the last byte of both buffers through volatile-qualified pointers,
+a side effect an optimizing compiler may neither drop nor move, so the
+`memcpy()` calls being measured cannot be optimized away (see the
+implementation notes below).  The level still shapes how a copy ends up being
+carried out, so `make testnoopt` runs the same cases over a build with an empty
+`CFLAGS` for comparison.  To check the source for warnings, build with
+`make CFLAGS='-O2 -Wall -Wextra -pedantic'` -- a `CFLAGS` given on the command
+line replaces the one in the Makefile, `-O2` included -- and it is expected to
+produce no warnings.
 
 ### Usage
 
@@ -177,13 +198,21 @@ figure at the end of a report line is
   is available.**  A wall clock with microsecond resolution easily reports
   0 sec for a short run, and old revisions divided the total by exactly that
   zero.  When the elapsed time is 0 sec the speed is reported as `N/A`, and
-  stderr suggests raising `size` or `count` or building without `-O`; a run
-  shorter than one millisecond gets a different notice instead.
+  stderr suggests raising `size` or `count`; a run shorter than one millisecond
+  gets a different notice instead.
 - If the resolution feels too coarse, use a larger `size` or `count`.
-- **Build with `-O1` or higher and the numbers mean nothing.**  The compiler can
-  recognize the repeated copy into the same buffer and remove the whole loop;
-  with `cc -O2` the measured time really is 0 sec and the report says `N/A`.
-  This is why the default `Makefile` keeps `CFLAGS` empty.
+- **Optimizing the program no longer optimizes the benchmark away.**  A loop
+  that keeps writing the same bytes somewhere nobody reads is something `-O2`
+  is entitled to delete as a whole, and an `cc -O2` build really did report
+  0 sec and `N/A` in older revisions.  Each copy is now followed by a
+  comparison of the last byte of the source with the last byte of the
+  destination, both read through volatile-qualified pointers: a volatile read
+  is a side effect that cannot be removed, and its value can only match the
+  source if the copy actually ran, so the compiler has to keep the copies.
+  Were they ever to disagree, `copy mismatch` goes to stderr, the loop stops
+  there and the total is computed from the copies that did finish.
+  This `-O2` build is the default now; `make testnoopt` measures the same cases
+  without optimization, and the two have not come apart so far.
 - An absurdly large `size` may get the process killed by the operating system
   instead of waiting for `malloc()` to return NULL and print `Can't alloc
   memory`.
@@ -192,7 +221,8 @@ figure at the end of a report line is
 
 - C99 or later is required (`stdint.h` and `strtoull()` are used).
 - The Makefile only delegates to `$(CC)`, so it builds as it is on macOS, Linux
-  and Solaris.
+  and Solaris.  Every mainstream compiler accepts the default `-O2`; drop it
+  with `make CFLAGS=` if one ever mishandles the source.
 - On older systems where `clock_gettime()` does not live in libc, build with
   `LDLIBS=-lrt`.  To force the traditional wall clock implementation instead,
   build with `-DUSE_GETTIMEOFDAY`.

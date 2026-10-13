@@ -72,9 +72,12 @@ int main(int argc, char **argv)
 {
 	char *end;
 	char *src = NULL, *dst = NULL;
+	const volatile char *vsrc;	/* volatile views of the last byte */
+	volatile char *vdst;		/* of each buffer, see the loop below */
 	const char *unit = "MB";
 	char speed[32];
 	uint64_t mem, memsize, count, totalsize, offset = 0;
+	uint64_t copies;
 	uint64_t i;
 	double begin, elapsed;
 	size_t bytes;
@@ -143,13 +146,37 @@ int main(int argc, char **argv)
 	memset(src, 0xA5, bytes);
 	memset(dst, 0xA5, bytes + (size_t)offset);
 
+	/*
+	 * A volatile view of the last byte of each buffer.  Reading through a
+	 * volatile-qualified pointer is a side effect the compiler has to keep,
+	 * and the value read from the destination can only equal the one read
+	 * from the source if the memcpy() below really ran.  That is what stops
+	 * an optimizing compiler from noticing that every iteration repeats the
+	 * same copy of data nobody reads, and deleting the whole loop -- which
+	 * used to leave an elapsed time of exactly 0 sec under -O2.  As a side
+	 * benefit the comparison is a copy integrity check.
+	 */
+	vsrc = (const volatile char *)src + bytes - 1;
+	vdst = (volatile char *)dst + offset + bytes - 1;
+
 	begin = now();
 
+	copies = count;
 	for (i = 0; i < count; i++)
+	{
 		memcpy(dst + offset, src, bytes);
+		if (*vdst != *vsrc)		/* the barrier; never taken */
+		{
+			fprintf(stderr, "memspeed: copy mismatch after %llu of %llu copies\n",
+					(unsigned long long)(i + 1),
+					(unsigned long long)count);
+			copies = i + 1;
+			break;
+		}
+	}
 
-	totalsize = memsize * count;
 	elapsed = now() - begin;
+	totalsize = memsize * copies;
 	if (elapsed < 0.0)			/* the wall clock stepped backwards */
 	{
 		elapsed = 0.0;
@@ -172,9 +199,9 @@ int main(int argc, char **argv)
 
 	if (elapsed <= 0.0)
 	{
-		/* also what happens when the compiler optimizes the loop away */
+		/* the volatile barrier keeps this from happening by -O */
 		fprintf(stderr, "memspeed: nothing measurable was copied;"
-				" use a larger size or count (or build without -O)\n");
+				" use a larger size or count\n");
 	}
 	else if (elapsed < 0.001)
 	{
